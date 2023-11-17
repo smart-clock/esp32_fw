@@ -1,7 +1,7 @@
 #include <WiFi.h>
 #include <HTTPClient.h>
 #include <ArduinoJson.h>
-#include <ESPAsyncWebServer.h>
+#include <ESPAsyncWebSrv.h>
 
 const char *ssid = "310352";
 const char *password = "22222222";
@@ -38,15 +38,38 @@ void setup() {
 }
 
 void loop() {
-  // Call the function to get weather information
-  getKoreaWeather();
-  // Call the function to get stock data
-  getStockData();
-  // Call the function to get the day's schedule from Google Calendar
-  getGoogleCalendarEvents();
+  // Repeatedly fetch and print data every 10 minutes
+  while (true) {
+    fetchAndPrintData();
+    delay(600000);  // Wait for 10 minutes before the next iteration
+  }
+}
 
-  // Wait for 10 minutes before making the next request
-  delay(600000); 
+void handleRoot(AsyncWebServerRequest *request) {
+  // Redirect to the authorization URL
+  request->redirect(getAuthorizationUrl().c_str());
+}
+
+String getAuthorizationUrl() {
+  // Construct the authorization URL
+  String url = "https://accounts.google.com/o/oauth2/auth?";
+  url += "client_id=your-385956556797-c8ps53eei1tcb836qmhetc3o294noqki.apps.googleusercontent.com";
+  url += "&redirect_uri=http://localhost:8080/test";
+  url += "&scope=https://www.googleapis.com/auth/calendar.readonly";
+  url += "&response_type=code";
+  url += "&access_type=offline";
+  return url;
+}
+
+void fetchAndPrintData() {
+  // Call get weather information
+  getKoreaWeather();
+
+  // Call stock data from Alpha Vantage
+  getStockData();
+
+  // Call the day's schedule from Google Calendar
+  getGoogleCalendarEvents();
 }
 
 void getKoreaWeather() {
