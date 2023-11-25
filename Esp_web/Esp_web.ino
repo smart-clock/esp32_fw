@@ -1,4 +1,10 @@
+//ESP_web.ino
+#define STOCK_NAME_SIZE 32
+#define WEATHER_INFO_SIZE 32
+#define TRANSPORTATION_INFO_SIZE 32
+
 #include <WiFi.h>
+#include <EEPROM.h>
 #include <ESPAsyncWebServer.h>
 #include "webpage.h"
 
@@ -65,7 +71,10 @@ void setupServer() {
       transportationInfo = platform + ", " + bus; // Implement your logic to get transportation info
     }
 
-    request->send(200, "text/plain", "All information updated");
+    // Save to EEPROM
+    saveToEEPROM();
+
+    request->send(200, "text/plain", "All information updated and saved to EEPROM");
   });
 
   server.begin();
@@ -73,17 +82,40 @@ void setupServer() {
 
 void setup() {
   setupWiFi();
+  loadFromEEPROM(); // Load data from EEPROM
   setupServer();
 }
 
 void loop() {
-  // You can handle other tasks here
 
   checkAndPrintStockName();
   checkAndPrintWeather();
   checkAndPrintTransportation();
 
-  delay(100); // Delay to control how often the values are updated
+  delay(100);
+}
+
+void saveToEEPROM() {
+  EEPROM.begin(STOCK_NAME_SIZE + WEATHER_INFO_SIZE + TRANSPORTATION_INFO_SIZE);
+
+  // Write each variable to EEPROM
+  EEPROM.writeString(0, stockName);
+  EEPROM.writeString(STOCK_NAME_SIZE, weatherInfo);
+  EEPROM.writeString(STOCK_NAME_SIZE + WEATHER_INFO_SIZE, transportationInfo);
+
+  EEPROM.commit();
+  EEPROM.end();
+}
+
+void loadFromEEPROM() {
+  EEPROM.begin(STOCK_NAME_SIZE + WEATHER_INFO_SIZE + TRANSPORTATION_INFO_SIZE);
+
+  // Read each variable from EEPROM
+  stockName = EEPROM.readString(0);
+  weatherInfo = EEPROM.readString(STOCK_NAME_SIZE);
+  transportationInfo = EEPROM.readString(STOCK_NAME_SIZE + WEATHER_INFO_SIZE);
+
+  EEPROM.end();
 }
 
 void checkAndPrintStockName() {
