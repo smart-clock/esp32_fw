@@ -2,9 +2,11 @@
 #include <ESPAsyncWebServer.h>
 #include "webpage.h"
 
-const char* ssid = "RATS_2.4G";
-const char* password = "rats8005";
-
+const char* ssid = "310352";
+const char* password = "22222222";
+//RATS_2.4G, rats8005
+//310352, 22222222
+//MJU_WIFI, mjuwlan!
 AsyncWebServer server(80);
 
 int valueToDisplay = 0;
