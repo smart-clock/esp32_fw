@@ -1,5 +1,3 @@
-// webpage.h
-
 #ifndef WEBPAGE_H
 #define WEBPAGE_H
 
@@ -9,46 +7,130 @@ const char index_html[] PROGMEM = R"rawliteral(
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
-  <title>2023 SMART CLOCK Web Server</title>
+  <title>Smart Clock Web Server</title>
   <!-- Bootstrap CSS -->
   <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+  <style>
+    body {
+      background-color: #f8f9fa;
+    }
+    .jumbotron {
+      background-color: #343a40;
+      color: #ffffff;
+    }
+    .container {
+      margin-top: 20px;
+    }
+    .info-zone {
+      background-color: #e9ecef;
+      padding: 15px;
+      border-radius: 10px;
+      margin-bottom: 20px;
+    }
+    .update-btn {
+      float: right;
+    }
+    .form-group {
+      margin-bottom: 20px;
+    }
+  </style>
   <script>
-    function fetchData() {
-      fetch('/data')
+    function updateAll() {
+      var stockName = document.getElementById('stockInput').value;
+      var weatherCountry = document.getElementById('weatherCountry').value;
+      var weatherCity = document.getElementById('weatherCity').value;
+      var platformNumber = document.getElementById('platformNumber').value;
+      var busNumber = document.getElementById('busNumber').value;
+
+      fetch('/updateAll?name=' + stockName + '&country=' + weatherCountry + '&city=' + weatherCity + '&platform=' + platformNumber + '&bus=' + busNumber)
         .then(response => response.text())
         .then(data => {
-          document.getElementById('content').innerHTML = data;
+          console.log('All information updated:', data);
+          fetchData('/stockName', 'stockContent');
+          fetchData('/weather', 'weatherContent');
+          fetchData('/transportation', 'transportationContent');
+        });
+    }
+
+    function fetchData(endpoint, targetId) {
+      fetch(endpoint)
+        .then(response => response.text())
+        .then(data => {
+          document.getElementById(targetId).innerHTML = data;
         });
     }
 
     // Initial fetch when the page is loaded
-    fetchData();
+    fetchData('/data', 'content');
+    fetchData('/stockName', 'stockContent');
+    fetchData('/weather', 'weatherContent');
+    fetchData('/transportation', 'transportationContent');
 
-    // Update the data every 1 second
-    setInterval(fetchData, 1000);
+    // Update the data every 5 seconds
+    setInterval(function() {
+      fetchData('/data', 'content');
+      fetchData('/stockName', 'stockContent');
+      fetchData('/weather', 'weatherContent');
+      fetchData('/transportation', 'transportationContent');
+    }, 5000);
   </script>
 </head>
-<body class="bg-light">
+<body>
   <div class="jumbotron text-center">
     <h1 class="display-4">SMART CLOCK</h1>
-    <p class="lead">"Access the essential information"</p>
+    <p class="lead">Access the essential information</p>
   </div>
 
   <div class="container">
-    <p>Value: <span id="content">Loading...</span></p>
+    <!-- Stock Update Zone -->
+    <div class="info-zone">
+      <h2>Stock</h2>
+      <div class="form-group">
+        <label for="stockInput">Enter Symbol:</label>
+        <input type="text" class="form-control" id="stockInput" placeholder="Symbol">
+      </div>
+      <p id="stockContent">Loading...</p>
+    </div>
+
+    <!-- Weather Update Zone -->
+    <div class="info-zone">
+      <h2>Weather</h2>
+      <div class="form-group">
+        <label for="weatherCountry">Country Code:</label>
+        <input type="text" class="form-control" id="weatherCountry" placeholder="Country Code">
+        <label for="weatherCity">City:</label>
+        <input type="text" class="form-control" id="weatherCity" placeholder="City">
+      </div>
+      <p id="weatherContent">Loading...</p>
+    </div>
+
+    <!-- Transportation Update Zone -->
+    <div class="info-zone">
+      <h2>Transportation</h2>
+      <div class="form-group">
+        <label for="platformNumber">Platform Number:</label>
+        <input type="text" class="form-control" id="platformNumber" placeholder="Platform Number">
+        <label for="busNumber">Bus Number:</label>
+        <input type="text" class="form-control" id="busNumber" placeholder="Bus Number">
+      </div>
+      <p id="transportationContent">Loading...</p>
+    </div>
+
+    <!-- Update All Button -->
+    <button onclick="updateAll()" class="btn btn-primary update-btn">Update All</button>
+
+    <!-- Display Zones -->
+    <div class="form-group">
+      <p id="content">Loading...</p>
+    </div>
   </div>
 
   <footer class="text-muted text-center">
     <div class="container">
-      <p>&copy; 2023 Smart Clock</p>
+      <p>© 2023 Smart Clock</p>
       <p id="datetime"></p>
     </div>
   </footer>
-
-  <!-- Bootstrap JS and dependencies -->
-  <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.9.3/dist/umd/popper.min.js"></script>
-  <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
 </body>
 </html>
 )rawliteral";
