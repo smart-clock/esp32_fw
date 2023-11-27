@@ -6,6 +6,8 @@
 #include <ESPAsyncWebSrv.h>
 #include <Time.h>
 #include <Adafruit_NeoPixel.h>
+#include "SparkFun_ACS37800_Arduino_Library.h" // Click here to get the library: http://librarymanager/All#SparkFun_ACS37800
+#include <Wire.h>
 
 #include "webpage.h"
 /* USER CODE END Includes */
@@ -25,6 +27,8 @@
 
 #define RGB_LED_NUM         (2) // TODO
 #define BRIGHTNESS          (180) //  밝기 설정 0(어둡게) ~ 255(밝게) 까지 임의로 설정 가능
+
+#define MAX_NUM_BATTERY_PERCENT_NUM 21
 /* USER CODE END PD */
 
 
@@ -49,6 +53,7 @@ const char* alphaVantageApiKey = "90SJ6Y9ECCZU8VNC";
 const char* alphaVantageApiUrl = "https://www.alphavantage.co/query";
 
 AsyncWebServer server(80);
+ACS37800 mySensor; //Create an object of the ACS37800 class
 
 int valueToDisplay = 0;
 String stockName = "No Stock";
@@ -61,6 +66,30 @@ Adafruit_NeoPixel strip = Adafruit_NeoPixel(RGB_LED_NUM, RGB_LED_PIN, NEO_GRB + 
 
 uint32_t period = 0;
 uint32_t periodPrev[3] = {0};
+float bat_voltage_percent_array[MAX_NUM_BATTERY_PERCENT_NUM] =
+{
+  7.30, // < 0
+  7.35, // < 5
+  7.4,  // < 10
+  7.45, // < 15
+  7.5,  // < 20
+  7.55, // < 25
+  7.6,  // < 30
+  7.65, // < 35
+  7.7,  // < 40
+  7.75, // < 45
+  7.8,  // < 50
+  7.85, // < 55
+  7.9,  // < 60
+  7.95, // < 65
+  8.0,  // < 70
+  8.05, // < 75
+  8.1,  // < 80
+  8.15, // < 85
+  8.2,  // < 90
+  8.3,  // < 95
+  8.4,  // < 100 
+};
 /* USER CODE END PV */
 
 
@@ -112,6 +141,7 @@ void setup()
     getKoreaWeather();
     getCurrentStockData(stockName);
     getMonthStockData(stockName);
+    getBatteryState();
 }
 
 void loop()
@@ -149,6 +179,23 @@ void setupUART()
     Serial1.println();
     Serial1.println("ESP to STM...");
     delay(100);
+
+    // UART2 : ACS37800
+    Serial2.begin(115200, SERIAL_8N1, 46, 3);
+    Serial.println(F("ACS37800 reading"));
+
+    Wire.begin(13,14);
+
+    if (mySensor.begin() == false)
+    {
+    Serial.print(F("ACS37800 not detected. Check connections and I2C address. Freezing..."));
+    while (1)9
+      ; // Do nothing more
+    }
+        // Sample rate is 32kHz. Maximum number of samples is 1023 (0x3FF) (10-bit)
+    mySensor.setNumberOfSamples(1023, true); // Set the number of samples in shadow memory and eeprom
+    mySensor.setBypassNenable(true, true); // Enable bypass_n in shadow memory and eeprom
+
 }
 
 void setupWiFi() 
@@ -303,7 +350,28 @@ void checkAndPrintTransportation() {
 
 void getBatteryState()
 {
+  float volts = 0.0;
 
+  //mySensor.readInstantaneous(&volts); // Read the instantaneous voltage
+  Serial.print(F("Volts: "));
+  Serial.print(volts, 2);
+  
+  delay(250);
+
+  float percent = 0;
+  for(int i = 0; i < MAX_NUM_BATTERY_PERCENT_NUM; i++)
+  {
+    if(bat_voltage_percent_array[i] < volts)
+    {
+      percent = (i + 1) * 5;
+    }
+  }
+  
+  Serial.print(percent);
+
+  // Send Packet from ESP to STM
+  esp2stmPacket = "*BT^" + String(percent) +"%";
+  sendPacketToStm(esp2stmPacket);
 }
 
 void sendPacketToStm(String packet)
