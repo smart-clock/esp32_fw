@@ -277,6 +277,7 @@ void checkAndPrintStockName() {
     Serial.print("Stock Name Info Updated: ");
     Serial.println(stockName);
     previousStockName = stockName;
+    getMonthStockData(stockName);
   }
 }
 
