@@ -29,7 +29,7 @@
 
 
 /* USER CODE BEGIN PV */
-const char* ssid = "RATS_2.4G"; // RATS_2.4G
+const char* ssid = "smartclock"; // RATS_2.4G
 const char* password = "rats8005"; // rats8005
 
 // NTP server to request epoch time
@@ -37,7 +37,8 @@ const char* ntpServer = "pool.ntp.org";
 const long gmtOffset_sec = 32400;  // +9:00 (9hours*60mins*60seconds)
 const int daylightOffset_sec = 0;
 
-const char* weatherApiUrl = "http://api.openweathermap.org/data/2.5/weather?q=yongin,kr&appid=1a485d0da9911216d18dd97c782eb32f";
+//const char* weatherApiUrl = "http://api.openweathermap.org/data/2.5/weather?q=yongin,kr&appid=1a485d0da9911216d18dd97c782eb32f";
+const char* weatherApiKey = "1a485d0da9911216d18dd97c782eb32f";
 
 const char* calendarApiKey = "AIzaSyBzuoDpuWBwncCQy0sgaZxkeWBB7CCgVGE";
 const char* calendarId = "385956556797-c8ps53eei1tcb836qmhetc3o294noqki.apps.googleusercontent.com";  // Calendar ID for the calendar you want to access
@@ -109,8 +110,8 @@ void setup()
 
     getDateTime();
     getKoreaWeather();
-    getCurrentStockData("AAPL");
-    getMonthStockData("AAPL");
+    getCurrentStockData(stockName);
+    getMonthStockData(stockName);
 }
 
 void loop()
@@ -129,7 +130,7 @@ void loop()
 
     if((period - periodPrev[1]) > 30000)
     {
-        getCurrentStockData("AAPL");
+        getCurrentStockData(stockName);
         periodPrev[1] = period;
     }
 }
@@ -206,7 +207,7 @@ void setupServer() {
     if (request->hasParam("country") && request->hasParam("city")) {
       String country = request->getParam("country")->value();
       String city = request->getParam("city")->value();
-      weatherInfo = city + ", " + country; // Implement your logic to get weather info
+      weatherInfo = city + "," + country; // Implement your logic to get weather info
     }
 
     // Update transportation information
@@ -369,8 +370,10 @@ void getKoreaWeather()
     // Create an HTTP client object
     HTTPClient http;
 
+    String weatherApiUrl = "http://api.openweathermap.org/data/2.5/weather?q=" + String(weatherInfo) + "&appid=" + String(weatherApiKey);
+
     // Make the request
-    http.begin(weatherApiUrl);
+    http.begin(weatherApiUrl.c_str());
 
     // Check for the response code
     int httpCode = http.GET();
@@ -407,13 +410,13 @@ void getKoreaWeather()
     http.end();
 }
 
-void getCurrentStockData(String symbol) 
+void getCurrentStockData(String stockName) 
 {
     // Create an HTTP client object
     HTTPClient http;
 
     // Build the Finnhub API request URL with API key and correct endpoint for getting stock quotes
-    String finnhubApiUrl = "https://finnhub.io/api/v1/quote?symbol=" + String(symbol) + "&token=" + String(finnhubApiKey); // Example symbol (AAPL)
+    String finnhubApiUrl = "https://finnhub.io/api/v1/quote?symbol=" + String(stockName) + "&token=" + String(finnhubApiKey); // Example symbol (AAPL)
     String currentPrice = "";
 
     // Make the request
@@ -435,7 +438,7 @@ void getCurrentStockData(String symbol)
             {
                 // Extract and print stock data
                 Serial.println("Stock Data from Finnhub:");
-                Serial.println("Symbol: " + String(symbol));
+                Serial.println("Symbol: " + String(stockName));
 
                 currentPrice = String(doc["c"].as<float>());
                 Serial.println("Current Price: " + currentPrice);
@@ -459,7 +462,7 @@ void getCurrentStockData(String symbol)
                 Serial.println();
 
                 // Send Packet from ESP to STM
-                esp2stmPacket = "*SC^" + String(symbol) + "," + String(currentPrice);
+                esp2stmPacket = "*SC^" + String(stockName) + "," + String(currentPrice);
                 sendPacketToStm(esp2stmPacket);
             } 
             else 
@@ -482,7 +485,7 @@ void getCurrentStockData(String symbol)
     http.end();
 }
 
-void getMonthStockData(String symbol) 
+void getMonthStockData(String stockName) 
 {
     // Create an HTTP client object
     HTTPClient http;
@@ -491,7 +494,7 @@ void getMonthStockData(String symbol)
     String stmPacket = "";
 
     String alphaVantageUrl = 
-        String(alphaVantageApiUrl) + "?function=TIME_SERIES_DAILY&symbol=" + String(symbol) + "&apikey=" + String(alphaVantageApiKey);
+        String(alphaVantageApiUrl) + "?function=TIME_SERIES_DAILY&symbol=" + String(stockName) + "&apikey=" + String(alphaVantageApiKey);
     Serial.println("Stock URL: " + alphaVantageUrl);    
 
     // Make the request
@@ -533,14 +536,14 @@ void getMonthStockData(String symbol)
                 dataCnt++;
             }
 
-            esp2stmPacket = "*SM^" + String(symbol);
+            esp2stmPacket = "*SM^" + String(stockName);
             for(int i = 0; i < 22; i++)
             {
                 esp2stmPacket += "," + String(data[i]);
             }
             sendPacketToStm(esp2stmPacket);
         }
-        else 
+        else
         {
             Serial.println("Alpha HTTP request failed with error code: " + String(httpCode));
         }
