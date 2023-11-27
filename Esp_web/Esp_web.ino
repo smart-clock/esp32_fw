@@ -2,13 +2,14 @@
 #define STOCK_NAME_SIZE 32
 #define WEATHER_INFO_SIZE 32
 #define TRANSPORTATION_INFO_SIZE 32
+#define RGB_INFO_SIZE 3 // Size for R, G, B values
 
 #include <WiFi.h>
 #include <EEPROM.h>
 #include <ESPAsyncWebSrv.h>
 #include "webpage.h"
 
-const char* ssid = "RATS_2.4G";
+const char* ssid = "smartclock";
 const char* password = "rats8005";
 // RATS_2.4G
 // rats8005
@@ -16,6 +17,10 @@ const char* password = "rats8005";
 AsyncWebServer server(80);
 
 int valueToDisplay = 0;
+int neopixelRed = 0;
+int neopixelGreen = 0;
+int neopixelBlue = 0;
+
 String stockName = "No Stock";
 String weatherInfo = "No Weather Info";
 String transportationInfo = "No Transportation Info";
@@ -80,6 +85,21 @@ void setupServer() {
     request->send(200, "text/plain", "All information updated and saved to EEPROM");
   });
 
+    // Add Neopixel color update handling
+  server.on("/updateNeopixelColor", HTTP_GET, [](AsyncWebServerRequest *request){
+    // Update Neopixel color
+    if (request->hasParam("red") && request->hasParam("green") && request->hasParam("blue")) {
+      neopixelRed = request->getParam("red")->value().toInt();
+      neopixelGreen = request->getParam("green")->value().toInt();
+      neopixelBlue = request->getParam("blue")->value().toInt();
+
+      // Save to EEPROM
+      saveRGBToEEPROM();
+    }
+
+    request->send(200, "text/plain", "Neopixel color updated and saved to EEPROM");
+  });
+
   server.begin();
 }
 
@@ -94,6 +114,8 @@ void loop() {
   checkAndPrintStockName();
   checkAndPrintWeather();
   checkAndPrintTransportation();
+
+  checkAndPrintRGB();
 
   delay(100);
 }
@@ -117,6 +139,29 @@ void loadFromEEPROM() {
   stockName = EEPROM.readString(0);
   weatherInfo = EEPROM.readString(STOCK_NAME_SIZE);
   transportationInfo = EEPROM.readString(STOCK_NAME_SIZE + WEATHER_INFO_SIZE);
+
+  EEPROM.end();
+}
+
+void saveRGBToEEPROM() {
+  EEPROM.begin(STOCK_NAME_SIZE + WEATHER_INFO_SIZE + TRANSPORTATION_INFO_SIZE + RGB_INFO_SIZE * 3);
+
+  // Write RGB values to EEPROM
+  EEPROM.writeInt(STOCK_NAME_SIZE + WEATHER_INFO_SIZE + TRANSPORTATION_INFO_SIZE, neopixelRed);
+  EEPROM.writeInt(STOCK_NAME_SIZE + WEATHER_INFO_SIZE + TRANSPORTATION_INFO_SIZE + RGB_INFO_SIZE, neopixelGreen);
+  EEPROM.writeInt(STOCK_NAME_SIZE + WEATHER_INFO_SIZE + TRANSPORTATION_INFO_SIZE + 2 * RGB_INFO_SIZE, neopixelBlue);
+
+  EEPROM.commit();
+  EEPROM.end();
+}
+
+void loadRGBFromEEPROM() {
+  EEPROM.begin(STOCK_NAME_SIZE + WEATHER_INFO_SIZE + TRANSPORTATION_INFO_SIZE + RGB_INFO_SIZE * 3);
+
+  // Read RGB values from EEPROM
+  neopixelRed = EEPROM.readInt(STOCK_NAME_SIZE + WEATHER_INFO_SIZE + TRANSPORTATION_INFO_SIZE);
+  neopixelGreen = EEPROM.readInt(STOCK_NAME_SIZE + WEATHER_INFO_SIZE + TRANSPORTATION_INFO_SIZE + RGB_INFO_SIZE);
+  neopixelBlue = EEPROM.readInt(STOCK_NAME_SIZE + WEATHER_INFO_SIZE + TRANSPORTATION_INFO_SIZE + 2 * RGB_INFO_SIZE);
 
   EEPROM.end();
 }
@@ -149,4 +194,14 @@ void checkAndPrintTransportation() {
     Serial.println(transportationInfo);
     previousTransportationInfo = transportationInfo;
   }
+}
+
+void checkAndPrintRGB() {
+  // Print Neopixel color
+  Serial.print("Neopixel Color: R=");
+  Serial.print(neopixelRed);
+  Serial.print(", G=");
+  Serial.print(neopixelGreen);
+  Serial.print(", B=");
+  Serial.println(neopixelBlue);
 }
