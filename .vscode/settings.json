@@ -1,0 +1,8 @@
+{
+    "files.associations": {
+        "settingserver.h": "c",
+        "initializer_list": "cpp",
+        "xtree": "cpp",
+        "xutility": "cpp"
+    }
+}

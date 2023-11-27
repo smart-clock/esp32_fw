@@ -32,10 +32,10 @@ void setLED(){
 
 }
 
-void setBUTTON(){
+void setBUTTON()
+{
   pinMode(BUTTON, INPUT_PULLUP);
   attachInterrupt(digitalPinToInterrupt(BUTTON), conLED, RISING);
-
 }
 
 void setIRSENSOR(){
@@ -44,12 +44,12 @@ void setIRSENSOR(){
     }
 }
 
-void startstrip(){
+void startstrip()
+{
   strip.begin();
   strip.setPixelColor(0, 255, 255, 255);          //  Neopixel 색상 설정
   strip.setPixelColor(1, 255, 255, 255);          //  ( 소자위치 , (Red) , (Green) , (Blue) ) 3가지 색을 다 킨다면 White가 켜짐
   strip.show();                               //  LED가 켜지는 동작을 하게 합니다
-
 }
 
 //---------------------------------------------------------------//
@@ -113,7 +113,8 @@ long getIR_Distance(){
   return average;
 }
 
-void colorWipe(uint32_t c, uint8_t wait){    //  loop에서 사용할 colorWipe 함수를 만든 공식
+void colorWipe(uint32_t c, uint8_t wait)
+{    //  loop에서 사용할 colorWipe 함수를 만든 공식
   for(uint16_t i=0; i<strip.numPixels(); i++){
     strip.setPixelColor(i,c);
     strip.show();
@@ -122,7 +123,8 @@ void colorWipe(uint32_t c, uint8_t wait){    //  loop에서 사용할 colorWipe 
 
 }
 
-void lightNEO(){
+void lightNEO()
+{
   colorWipe(strip.Color(0,0,0),250);  //  strip 색상을 ( 255 (Red) , 255 (Green) , 255 (Blue) , 100)
   delay(500);
   colorWipe(strip.Color(255,255,255),250);  //  strip 색상을 ( 255 (Red) , 255 (Green) , 255 (Blue) , 100)

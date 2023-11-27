@@ -5,11 +5,14 @@
 
 #include <WiFi.h>
 #include <EEPROM.h>
-#include <ESPAsyncWebServer.h>
+#include <ESPAsyncWebSrv.h>
 #include "webpage.h"
 
 const char* ssid = "RATS_2.4G";
 const char* password = "rats8005";
+// RATS_2.4G
+// rats8005
+
 AsyncWebServer server(80);
 
 int valueToDisplay = 0;

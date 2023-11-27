@@ -95,7 +95,7 @@ void getKoreaWeather() {
 
             // Extract and print weather information
             String city = doc["name"];
-            String description = doc["weather"][0]["description"];
+            String description = doc["weather"][0]["main"];
             float temperature = doc["main"]["temp"];
 
             Serial.println("City: " + city);
