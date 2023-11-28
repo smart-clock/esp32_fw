@@ -9,7 +9,7 @@
 #include <ESPAsyncWebServer.h>
 #include "webpage.h"
 
-const char* ssid = "RATS_2.4G";
+const char* ssid = "smartclock";
 const char* password = "rats8005";
 AsyncWebServer server(80);
 
@@ -180,12 +180,12 @@ void checkAndPrintRGB() {
     previousneopixelRed = neopixelRed;
   }
   if (neopixelGreen != previousneopixelGreen) {
-    Serial.print(" G= ");
+    Serial.print("G= ");
     Serial.println(neopixelGreen);
     previousneopixelGreen = neopixelGreen;
   }
   if (neopixelBlue != previousneopixelBlue) {
-    Serial.print(" B= ");
+    Serial.print("B= ");
     Serial.println(neopixelBlue);
     previousneopixelBlue = neopixelBlue;
   }

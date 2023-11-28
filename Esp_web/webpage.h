@@ -90,7 +90,7 @@ const char index_html[] PROGMEM = R"rawliteral(
     <div class="info-zone">
       <h2>Stock</h2>
       <div class="form-group">
-        <label for="stockInput">Symbol:</label>
+        <label for="stockInput">Ticker:</label>
         <input type="text" class="form-control" id="stockInput" placeholder="Ex) AAPL">
       </div>
       <p id="stockContent">Loading...</p>
