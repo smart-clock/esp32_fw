@@ -52,19 +52,6 @@ const char index_html[] PROGMEM = R"rawliteral(
         });
     }
 
-    function updateNeopixelColor() {
-      var neopixelRed = document.getElementById('neopixelRed').value;
-      var neopixelGreen = document.getElementById('neopixelGreen').value;
-      var neopixelBlue = document.getElementById('neopixelBlue').value;
-
-      fetch('/updateNeopixelColor?red=' + neopixelRed + '&green=' + neopixelGreen + '&blue=' + neopixelBlue)
-        .then(response => response.text())
-        .then(data => {
-          console.log('Neopixel color updated:', data);
-          fetchData('/neopixelColor', 'neopixelColorContent');
-        });
-    }
-
     function fetchData(endpoint, targetId) {
       fetch(endpoint)
         .then(response => response.text())
@@ -95,21 +82,6 @@ const char index_html[] PROGMEM = R"rawliteral(
   </div>
 
   <div class="container">
-
-    <div class="info-zone">
-      <h2>Neopixel Color</h2>
-      <div class="form-group">
-        <label for="neopixelRed">Red:</label>
-        <input type="number" class="form-control" id="neopixelRed" placeholder="Red" min="0" max="255">
-        <label for="neopixelGreen">Green:</label>
-        <input type="number" class="form-control" id="neopixelGreen" placeholder="Green" min="0" max="255">
-        <label for="neopixelBlue">Blue:</label>
-        <input type="number" class="form-control" id="neopixelBlue" placeholder="Blue" min="0" max="255">
-      </div>
-      <button onclick="updateNeopixelColor()" class="btn btn-primary update-btn">Update Neopixel Color</button>
-      <p id="neopixelColorContent">Loading...</p>
-    </div>
-
     <!-- Stock Update Zone -->
     <div class="info-zone">
       <h2>Stock</h2>
