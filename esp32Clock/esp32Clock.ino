@@ -17,6 +17,7 @@
 #define STOCK_NAME_SIZE 32
 #define WEATHER_INFO_SIZE 32
 #define TRANSPORTATION_INFO_SIZE 32
+#define RGB_INFO_SIZE 3
 
 #define STM32_UART_TX_PIN   (5)
 #define STM32_UART_RX_PIN   (4)
@@ -56,6 +57,9 @@ AsyncWebServer server(80);
 ACS37800 mySensor; //Create an object of the ACS37800 class
 
 int valueToDisplay = 0;
+int neopixelRed = 0;
+int neopixelGreen = 0;
+int neopixelBlue = 0;
 String stockName = "No Stock";
 String weatherInfo = "No Weather Info";
 String transportationInfo = "No Transportation Info";
@@ -66,30 +70,6 @@ Adafruit_NeoPixel strip = Adafruit_NeoPixel(RGB_LED_NUM, RGB_LED_PIN, NEO_GRB + 
 
 uint32_t period = 0;
 uint32_t periodPrev[3] = {0};
-float bat_voltage_percent_array[MAX_NUM_BATTERY_PERCENT_NUM] =
-{
-  7.30, // < 0
-  7.35, // < 5
-  7.4,  // < 10
-  7.45, // < 15
-  7.5,  // < 20
-  7.55, // < 25
-  7.6,  // < 30
-  7.65, // < 35
-  7.7,  // < 40
-  7.75, // < 45
-  7.8,  // < 50
-  7.85, // < 55
-  7.9,  // < 60
-  7.95, // < 65
-  8.0,  // < 70
-  8.05, // < 75
-  8.1,  // < 80
-  8.15, // < 85
-  8.2,  // < 90
-  8.3,  // < 95
-  8.4,  // < 100 
-};
 /* USER CODE END PV */
 
 
@@ -141,7 +121,7 @@ void setup()
     getKoreaWeather();
     getCurrentStockData(stockName);
     getMonthStockData(stockName);
-    getBatteryState();
+    //getBatteryState();
 }
 
 void loop()
@@ -149,6 +129,7 @@ void loop()
     checkAndPrintStockName();
     checkAndPrintWeather();
     checkAndPrintTransportation();
+    checkAndPrintRGB();
 
     period = millis();
 
@@ -184,8 +165,10 @@ void setupUART()
     Serial2.begin(115200, SERIAL_8N1, 46, 3);
     Serial.println(F("ACS37800 reading"));
 
-    Wire.begin(13,14);
+    Wire.begin(46,3);
 
+    // PCB에서만 사용하기
+    /* 
     if (mySensor.begin() == false)
     {
     Serial.print(F("ACS37800 not detected. Check connections and I2C address. Freezing..."));
@@ -195,7 +178,7 @@ void setupUART()
         // Sample rate is 32kHz. Maximum number of samples is 1023 (0x3FF) (10-bit)
     mySensor.setNumberOfSamples(1023, true); // Set the number of samples in shadow memory and eeprom
     mySensor.setBypassNenable(true, true); // Enable bypass_n in shadow memory and eeprom
-
+    */
 }
 
 void setupWiFi() 
@@ -254,7 +237,7 @@ void setupServer() {
     if (request->hasParam("country") && request->hasParam("city")) {
       String country = request->getParam("country")->value();
       String city = request->getParam("city")->value();
-      weatherInfo = city + "," + country; // Implement your logic to get weather info
+      weatherInfo = city + ", " + country; // Implement your logic to get weather info
     }
 
     // Update transportation information
@@ -262,6 +245,12 @@ void setupServer() {
       String platform = request->getParam("platform")->value();
       String bus = request->getParam("bus")->value();
       transportationInfo = platform + ", " + bus; // Implement your logic to get transportation info
+    }
+
+    if (request->hasParam("red") && request->hasParam("green") && request->hasParam("blue")) {
+    neopixelRed = request->getParam("red")->value().toInt();
+    neopixelGreen = request->getParam("green")->value().toInt();
+    neopixelBlue = request->getParam("blue")->value().toInt();
     }
 
     // Save to EEPROM
@@ -295,24 +284,32 @@ void startstrip()
 }
 
 void saveToEEPROM() {
-  EEPROM.begin(STOCK_NAME_SIZE + WEATHER_INFO_SIZE + TRANSPORTATION_INFO_SIZE);
+  EEPROM.begin(STOCK_NAME_SIZE + WEATHER_INFO_SIZE + TRANSPORTATION_INFO_SIZE + (RGB_INFO_SIZE * 3));
 
   // Write each variable to EEPROM
   EEPROM.writeString(0, stockName);
   EEPROM.writeString(STOCK_NAME_SIZE, weatherInfo);
   EEPROM.writeString(STOCK_NAME_SIZE + WEATHER_INFO_SIZE, transportationInfo);
 
+  EEPROM.writeInt(STOCK_NAME_SIZE + WEATHER_INFO_SIZE + TRANSPORTATION_INFO_SIZE, neopixelRed);
+  EEPROM.writeInt(STOCK_NAME_SIZE + WEATHER_INFO_SIZE + TRANSPORTATION_INFO_SIZE + RGB_INFO_SIZE, neopixelGreen);
+  EEPROM.writeInt(STOCK_NAME_SIZE + WEATHER_INFO_SIZE + TRANSPORTATION_INFO_SIZE + (2 * RGB_INFO_SIZE), neopixelBlue);
+
   EEPROM.commit();
   EEPROM.end();
 }
 
 void loadFromEEPROM() {
-  EEPROM.begin(STOCK_NAME_SIZE + WEATHER_INFO_SIZE + TRANSPORTATION_INFO_SIZE);
+  EEPROM.begin(STOCK_NAME_SIZE + WEATHER_INFO_SIZE + TRANSPORTATION_INFO_SIZE + (RGB_INFO_SIZE * 3));
 
   // Read each variable from EEPROM
   stockName = EEPROM.readString(0);
   weatherInfo = EEPROM.readString(STOCK_NAME_SIZE);
   transportationInfo = EEPROM.readString(STOCK_NAME_SIZE + WEATHER_INFO_SIZE);
+
+  neopixelRed = EEPROM.readInt(STOCK_NAME_SIZE + WEATHER_INFO_SIZE + TRANSPORTATION_INFO_SIZE);
+  neopixelGreen = EEPROM.readInt(STOCK_NAME_SIZE + WEATHER_INFO_SIZE + TRANSPORTATION_INFO_SIZE + RGB_INFO_SIZE);
+  neopixelBlue = EEPROM.readInt(STOCK_NAME_SIZE + WEATHER_INFO_SIZE + TRANSPORTATION_INFO_SIZE + (2 * RGB_INFO_SIZE));
 
   EEPROM.end();
 }
@@ -348,6 +345,29 @@ void checkAndPrintTransportation() {
   }
 }
 
+void checkAndPrintRGB() {
+  // Print Neopixel color
+  static int previousneopixelRed = 0;
+  static int previousneopixelGreen = 0;
+  static int previousneopixelBlue = 0;
+
+  if (neopixelRed != previousneopixelRed) {
+    Serial.print("R= ");
+    Serial.println(neopixelRed);
+    previousneopixelRed = neopixelRed;
+  }
+  if (neopixelGreen != previousneopixelGreen) {
+    Serial.print("G= ");
+    Serial.println(neopixelGreen);
+    previousneopixelGreen = neopixelGreen;
+  }
+  if (neopixelBlue != previousneopixelBlue) {
+    Serial.print("B= ");
+    Serial.println(neopixelBlue);
+    previousneopixelBlue = neopixelBlue;
+  }
+}
+
 void getBatteryState()
 {
   float volts = 0.0;
@@ -358,14 +378,12 @@ void getBatteryState()
   
   delay(250);
 
-  float percent = 0;
-  for(int i = 0; i < MAX_NUM_BATTERY_PERCENT_NUM; i++)
-  {
-    if(bat_voltage_percent_array[i] < volts)
-    {
-      percent = (i + 1) * 5;
-    }
-  }
+  char percent[10];
+  float Vmin = 7.3;
+  float Vmax = 8.4;
+  float percentage = (volts - Vmin) / (Vmax - Vmin) * 100;
+
+  sprintf(percent, "%2d%% ", percentage);
   
   Serial.print(percent);
 
