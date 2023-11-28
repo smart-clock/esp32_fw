@@ -41,14 +41,18 @@ const char index_html[] PROGMEM = R"rawliteral(
       var weatherCity = document.getElementById('weatherCity').value;
       var platformNumber = document.getElementById('platformNumber').value;
       var busNumber = document.getElementById('busNumber').value;
+      var neopixelRed = document.getElementById('neopixelRed').value;
+      var neopixelGreen = document.getElementById('neopixelGreen').value;
+      var neopixelBlue = document.getElementById('neopixelBlue').value;
 
-      fetch('/updateAll?name=' + stockName + '&country=' + weatherCountry + '&city=' + weatherCity + '&platform=' + platformNumber + '&bus=' + busNumber)
+      fetch('/updateAll?name=' + stockName + '&country=' + weatherCountry + '&city=' + weatherCity + '&platform=' + platformNumber + '&bus=' + busNumber + '&red=' + neopixelRed + '&green=' + neopixelGreen + '&blue=' + neopixelBlue)
         .then(response => response.text())
         .then(data => {
           console.log('All information updated:', data);
           fetchData('/stockName', 'stockContent');
           fetchData('/weather', 'weatherContent');
           fetchData('/transportation', 'transportationContent');
+          fetchData('/neopixelColor', 'neopixelColorContent');
         });
     }
 
@@ -86,8 +90,8 @@ const char index_html[] PROGMEM = R"rawliteral(
     <div class="info-zone">
       <h2>Stock</h2>
       <div class="form-group">
-        <label for="stockInput">Enter Symbol:</label>
-        <input type="text" class="form-control" id="stockInput" placeholder="Symbol">
+        <label for="stockInput">Symbol:</label>
+        <input type="text" class="form-control" id="stockInput" placeholder="Ex) AAPL">
       </div>
       <p id="stockContent">Loading...</p>
     </div>
@@ -97,9 +101,9 @@ const char index_html[] PROGMEM = R"rawliteral(
       <h2>Weather</h2>
       <div class="form-group">
         <label for="weatherCountry">Country Code:</label>
-        <input type="text" class="form-control" id="weatherCountry" placeholder="Country Code">
+        <input type="text" class="form-control" id="weatherCountry" placeholder="Ex) kr">
         <label for="weatherCity">City:</label>
-        <input type="text" class="form-control" id="weatherCity" placeholder="City">
+        <input type="text" class="form-control" id="weatherCity" placeholder="Ex) seoul">
       </div>
       <p id="weatherContent">Loading...</p>
     </div>
@@ -109,11 +113,25 @@ const char index_html[] PROGMEM = R"rawliteral(
       <h2>Transportation</h2>
       <div class="form-group">
         <label for="platformNumber">Platform Number:</label>
-        <input type="text" class="form-control" id="platformNumber" placeholder="Platform Number">
+        <input type="text" class="form-control" id="platformNumber" placeholder="Ex) 47946">
         <label for="busNumber">Bus Number:</label>
-        <input type="text" class="form-control" id="busNumber" placeholder="Bus Number">
+        <input type="text" class="form-control" id="busNumber" placeholder="Ex) 5005">
       </div>
       <p id="transportationContent">Loading...</p>
+    </div>
+
+    <!-- LED Update Zone -->
+    <div class="info-zone">
+      <h2>LED Color</h2>
+      <div class="form-group">
+        <label for="neopixelRed">Red:</label>
+        <input type="number" class="form-control" id="neopixelRed" placeholder="Ex) 0~255" min="0" max="255">
+        <label for="neopixelGreen">Green:</label>
+        <input type="number" class="form-control" id="neopixelGreen" placeholder="Ex) 0~255" min="0" max="255">
+        <label for="neopixelBlue">Blue:</label>
+        <input type="number" class="form-control" id="neopixelBlue" placeholder="Ex) 0~255" min="0" max="255">
+      </div>
+      <p id="neopixelColorContent">Loading...</p>
     </div>
 
     <!-- Update All Button -->

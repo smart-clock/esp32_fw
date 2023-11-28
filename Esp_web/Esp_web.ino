@@ -2,6 +2,7 @@
 #define STOCK_NAME_SIZE 32
 #define WEATHER_INFO_SIZE 32
 #define TRANSPORTATION_INFO_SIZE 32
+#define RGB_INFO_SIZE 3 // Size for R, G, B values
 
 #include <WiFi.h>
 #include <EEPROM.h>
@@ -13,6 +14,10 @@ const char* password = "rats8005";
 AsyncWebServer server(80);
 
 int valueToDisplay = 0;
+int neopixelRed = 0;
+int neopixelGreen = 0;
+int neopixelBlue = 0;
+
 String stockName = "No Stock";
 String weatherInfo = "No Weather Info";
 String transportationInfo = "No Transportation Info";
@@ -71,6 +76,12 @@ void setupServer() {
       transportationInfo = platform + ", " + bus; // Implement your logic to get transportation info
     }
 
+    if (request->hasParam("red") && request->hasParam("green") && request->hasParam("blue")) {
+    neopixelRed = request->getParam("red")->value().toInt();
+    neopixelGreen = request->getParam("green")->value().toInt();
+    neopixelBlue = request->getParam("blue")->value().toInt();
+    }
+
     // Save to EEPROM
     saveToEEPROM();
 
@@ -91,29 +102,38 @@ void loop() {
   checkAndPrintStockName();
   checkAndPrintWeather();
   checkAndPrintTransportation();
+  checkAndPrintRGB();
 
   delay(100);
 }
 
 void saveToEEPROM() {
-  EEPROM.begin(STOCK_NAME_SIZE + WEATHER_INFO_SIZE + TRANSPORTATION_INFO_SIZE);
+  EEPROM.begin(STOCK_NAME_SIZE + WEATHER_INFO_SIZE + TRANSPORTATION_INFO_SIZE + (RGB_INFO_SIZE * 3));
 
   // Write each variable to EEPROM
   EEPROM.writeString(0, stockName);
   EEPROM.writeString(STOCK_NAME_SIZE, weatherInfo);
   EEPROM.writeString(STOCK_NAME_SIZE + WEATHER_INFO_SIZE, transportationInfo);
 
+  EEPROM.writeInt(STOCK_NAME_SIZE + WEATHER_INFO_SIZE + TRANSPORTATION_INFO_SIZE, neopixelRed);
+  EEPROM.writeInt(STOCK_NAME_SIZE + WEATHER_INFO_SIZE + TRANSPORTATION_INFO_SIZE + RGB_INFO_SIZE, neopixelGreen);
+  EEPROM.writeInt(STOCK_NAME_SIZE + WEATHER_INFO_SIZE + TRANSPORTATION_INFO_SIZE + (2 * RGB_INFO_SIZE), neopixelBlue);
+
   EEPROM.commit();
   EEPROM.end();
 }
 
 void loadFromEEPROM() {
-  EEPROM.begin(STOCK_NAME_SIZE + WEATHER_INFO_SIZE + TRANSPORTATION_INFO_SIZE);
+  EEPROM.begin(STOCK_NAME_SIZE + WEATHER_INFO_SIZE + TRANSPORTATION_INFO_SIZE + (RGB_INFO_SIZE * 3));
 
   // Read each variable from EEPROM
   stockName = EEPROM.readString(0);
   weatherInfo = EEPROM.readString(STOCK_NAME_SIZE);
   transportationInfo = EEPROM.readString(STOCK_NAME_SIZE + WEATHER_INFO_SIZE);
+
+  neopixelRed = EEPROM.readInt(STOCK_NAME_SIZE + WEATHER_INFO_SIZE + TRANSPORTATION_INFO_SIZE);
+  neopixelGreen = EEPROM.readInt(STOCK_NAME_SIZE + WEATHER_INFO_SIZE + TRANSPORTATION_INFO_SIZE + RGB_INFO_SIZE);
+  neopixelBlue = EEPROM.readInt(STOCK_NAME_SIZE + WEATHER_INFO_SIZE + TRANSPORTATION_INFO_SIZE + (2 * RGB_INFO_SIZE));
 
   EEPROM.end();
 }
@@ -145,5 +165,28 @@ void checkAndPrintTransportation() {
     Serial.print("Transportation Info Updated: ");
     Serial.println(transportationInfo);
     previousTransportationInfo = transportationInfo;
+  }
+}
+
+void checkAndPrintRGB() {
+  // Print Neopixel color
+  static int previousneopixelRed = 0;
+  static int previousneopixelGreen = 0;
+  static int previousneopixelBlue = 0;
+
+  if (neopixelRed != previousneopixelRed) {
+    Serial.print("R= ");
+    Serial.println(neopixelRed);
+    previousneopixelRed = neopixelRed;
+  }
+  if (neopixelGreen != previousneopixelGreen) {
+    Serial.print(" G= ");
+    Serial.println(neopixelGreen);
+    previousneopixelGreen = neopixelGreen;
+  }
+  if (neopixelBlue != previousneopixelBlue) {
+    Serial.print(" B= ");
+    Serial.println(neopixelBlue);
+    previousneopixelBlue = neopixelBlue;
   }
 }
