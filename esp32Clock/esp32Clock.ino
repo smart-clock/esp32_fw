@@ -53,8 +53,8 @@ typedef struct
 
 
 /* USER CODE BEGIN PV */
-const char* ssid = "mokhwa"; // RATS_2.4G
-const char* password = "8567381ki"; // rats8005
+const char* ssid = "RATS_2.4G"; // RATS_2.4G
+const char* password = "rats8005"; // rats8005
 
 // NTP server to request epoch time
 const char* ntpServer = "pool.ntp.org";
