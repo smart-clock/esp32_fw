@@ -93,6 +93,9 @@ BUS myBus;
 using namespace tinyxml2;
 char xmlDoc[10000];
 
+uint8_t buttonPrev = 0;
+uint8_t buttonCurr = 0;
+
 uint32_t period = 0;
 uint32_t periodPrev[5] = {0};
 /* USER CODE END PV */
@@ -159,6 +162,8 @@ void loop()
     checkAndPrintWeather();
     checkAndPrintTransportation();
     checkAndPrintRGB();
+
+    sendUserButtonPacket();
 
     period = millis();
 
@@ -315,8 +320,10 @@ void setupServer() {
 
 void setUserButton()
 {
+    // pinMode(USER_BUTION_PIN, INPUT_PULLUP);
+    // attachInterrupt(digitalPinToInterrupt(USER_BUTION_PIN), sendUserButtonPacket, RISING);
+
     pinMode(USER_BUTION_PIN, INPUT_PULLUP);
-    attachInterrupt(digitalPinToInterrupt(USER_BUTION_PIN), sendUserButtonPacket, RISING);
 }
 
 void setRgbLed()
@@ -931,7 +938,16 @@ bool getBusArrival(const char* routeName, int stationId, int routeId, int staOrd
 
 void sendUserButtonPacket()
 {
-    esp2stmPacket = "*BU^1";
-    sendPacketToStm(esp2stmPacket);
+    buttonCurr = digitalRead(USER_BUTION_PIN);    
+
+    if((buttonCurr == 1) && (buttonPrev == 0))
+    {
+        esp2stmPacket = "*BU^1";
+        sendPacketToStm(esp2stmPacket);
+
+        buttonPrev = buttonCurr;
+    }
+
+    buttonPrev = buttonCurr;
 }
 /* USER CODE BEGIN PFP DEFINITION */
