@@ -2,6 +2,7 @@
 #include <WiFi.h>
 #include <HTTPClient.h>
 #include <ArduinoJson.h>
+#include <tinyxml2.h> // Install TinyXML by Adafruit
 #include <EEPROM.h>
 #include <ESPAsyncWebSrv.h>
 #include <Time.h>
@@ -30,12 +31,30 @@
 #define BRIGHTNESS          (180) //  밝기 설정 0(어둡게) ~ 255(밝게) 까지 임의로 설정 가능
 
 #define MAX_NUM_BATTERY_PERCENT_NUM 21
+
+#define PUBLIC_DATA_API_KEY "HHec4G%2FFjjMjQIfzZa3yfZuItK93BQh%2BC%2FwkITl%2FCu8X3h%2BAjlF74glKicSnEN%2BVeZEOvstt07Zz%2Be%2BvmAlFVQ%3D%3D"
+
+typedef struct
+{
+  int mobileNo;        // 정류소 번호
+  char routeName[30];  // 노선 번호
+
+  char stationName[100];  // 정류소명
+  int stationId;          // 정류소 아이디
+  int routeId;            // 노선 아이디
+  int staOrder;           // 정류소 순번
+
+  int locationNo1;
+  int predictTime1;
+  int locationNo2;
+  int predictTime2;
+} BUS;
 /* USER CODE END PD */
 
 
 /* USER CODE BEGIN PV */
-const char* ssid = "smartclock"; // RATS_2.4G
-const char* password = "rats8005"; // rats8005
+const char* ssid = "mokhwa"; // RATS_2.4G
+const char* password = "8567381ki"; // rats8005
 
 // NTP server to request epoch time
 const char* ntpServer = "pool.ntp.org";
@@ -50,7 +69,9 @@ const char* calendarId = "385956556797-c8ps53eei1tcb836qmhetc3o294noqki.apps.goo
 
 const char* finnhubApiKey = "cletue1r01qnc24enns0cletue1r01qnc24ennsg";
 
-const char* alphaVantageApiKey = "90SJ6Y9ECCZU8VNC"; 
+// key 1 : 90SJ6Y9ECCZU8VNC, key 2 : 5YNRYI61AVHWUK9C
+// const char* alphaVantageApiKey = "5YNRYI61AVHWUK9C";
+const char* alphaVantageApiKey = "demo";
 const char* alphaVantageApiUrl = "https://www.alphavantage.co/query";
 
 AsyncWebServer server(80);
@@ -68,8 +89,12 @@ String esp2stmPacket = "";
 
 Adafruit_NeoPixel strip = Adafruit_NeoPixel(RGB_LED_NUM, RGB_LED_PIN, NEO_GRB + NEO_KHZ800);
 
+BUS myBus;
+using namespace tinyxml2;
+char xmlDoc[10000];
+
 uint32_t period = 0;
-uint32_t periodPrev[3] = {0};
+uint32_t periodPrev[5] = {0};
 /* USER CODE END PV */
 
 
@@ -96,6 +121,10 @@ void getDateTime();
 void getKoreaWeather();
 void getCurrentStockData(String symbol); // Finnhub API
 void getMonthStockData(String symbol); // Alpha Vantage API
+
+bool getBusStationId(int mobileNo); // 29405 명지대 입구
+bool getStaOrder(int stationId, const char* routeName); // 5005번 버스
+bool getBusArrival(const char* routeName, int stationId, int routeId, int staOrder);
 
 void sendUserButtonPacket();
 
@@ -135,14 +164,30 @@ void loop()
 
     if((period - periodPrev[0]) > 10000) // 10초
     {
-        getKoreaWeather();
+        esp2stmPacket = "*BT^86%"; // 배터리 상태
+        sendPacketToStm(esp2stmPacket);
+
         periodPrev[0] = period;
     }
-
-    if((period - periodPrev[1]) > 30000)
+    if((period - periodPrev[1]) > 15000) // 15초
+    {
+        while(!getBusArrival(myBus.routeName, myBus.stationId, myBus.routeId, myBus.staOrder)) delay(1000);
+        periodPrev[1] = period;
+    }
+    if((period - periodPrev[2]) > 20000) // 15초
+    {
+        getKoreaWeather();
+        periodPrev[2] = period;
+    }
+    if((period - periodPrev[3]) > 30000)
     {
         getCurrentStockData(stockName);
-        periodPrev[1] = period;
+        periodPrev[3] = period;
+    }
+    if((period - periodPrev[4]) > 60000) // 1분
+    {
+        getDateTime(); // 정확한 시간 값 받아옴
+        periodPrev[4] = period;
     }
 }
 /* USER CODE BEGIN SETUP, LOOP */
@@ -244,7 +289,13 @@ void setupServer() {
     if (request->hasParam("platform") && request->hasParam("bus")) {
       String platform = request->getParam("platform")->value();
       String bus = request->getParam("bus")->value();
-      transportationInfo = platform + ", " + bus; // Implement your logic to get transportation info
+      transportationInfo = platform + "," + bus; // Implement your logic to get transportation info
+
+      myBus.mobileNo = platform.toInt();
+      bus.toCharArray(myBus.routeName, 30); 
+
+      Serial.println(myBus.mobileNo);
+      Serial.println(myBus.routeName);
     }
 
     if (request->hasParam("red") && request->hasParam("green") && request->hasParam("blue")) {
@@ -300,6 +351,7 @@ void saveToEEPROM() {
 }
 
 void loadFromEEPROM() {
+  Serial.println("-------------LOAD FROM EEPROM-------------");
   EEPROM.begin(STOCK_NAME_SIZE + WEATHER_INFO_SIZE + TRANSPORTATION_INFO_SIZE + (RGB_INFO_SIZE * 3));
 
   // Read each variable from EEPROM
@@ -307,11 +359,23 @@ void loadFromEEPROM() {
   weatherInfo = EEPROM.readString(STOCK_NAME_SIZE);
   transportationInfo = EEPROM.readString(STOCK_NAME_SIZE + WEATHER_INFO_SIZE);
 
+  String tmp = "";
+  int index = 0;
+  index = transportationInfo.indexOf(',');
+  tmp = transportationInfo.substring(0, index);
+  myBus.mobileNo = tmp.toInt();
+  Serial.println(myBus.mobileNo);
+
+  tmp = transportationInfo.substring(index + 1);
+  tmp.toCharArray(myBus.routeName, 30); 
+  Serial.println(myBus.routeName);
+
   neopixelRed = EEPROM.readInt(STOCK_NAME_SIZE + WEATHER_INFO_SIZE + TRANSPORTATION_INFO_SIZE);
   neopixelGreen = EEPROM.readInt(STOCK_NAME_SIZE + WEATHER_INFO_SIZE + TRANSPORTATION_INFO_SIZE + RGB_INFO_SIZE);
   neopixelBlue = EEPROM.readInt(STOCK_NAME_SIZE + WEATHER_INFO_SIZE + TRANSPORTATION_INFO_SIZE + (2 * RGB_INFO_SIZE));
 
   EEPROM.end();
+  Serial.println("-------------LOAD FROM EEPROM-------------");
 }
 
 void checkAndPrintStockName() {
@@ -321,6 +385,8 @@ void checkAndPrintStockName() {
     Serial.print("Stock Name Info Updated: ");
     Serial.println(stockName);
     previousStockName = stockName;
+
+    getCurrentStockData(stockName);
     getMonthStockData(stockName);
   }
 }
@@ -331,6 +397,8 @@ void checkAndPrintWeather() {
   if (weatherInfo != previousWeatherInfo) {
     Serial.print("Weather Info Updated: ");
     Serial.println(weatherInfo);
+        
+    getKoreaWeather();
     previousWeatherInfo = weatherInfo;
   }
 }
@@ -341,6 +409,10 @@ void checkAndPrintTransportation() {
   if (transportationInfo != previousTransportationInfo) {
     Serial.print("Transportation Info Updated: ");
     Serial.println(transportationInfo);
+
+    while(!getBusStationId(myBus.mobileNo)) delay(1000);
+    while(!getStaOrder(myBus.stationId, myBus.routeName)) delay(1000);
+
     previousTransportationInfo = transportationInfo;
   }
 }
@@ -442,9 +514,20 @@ void getDateTime()
             break;
     }
 
+    String hour, min, sec;
+
+    if(timeinfo.tm_hour < 10) hour = "0" + String(timeinfo.tm_hour);
+    else hour = String(timeinfo.tm_hour);
+
+    if(timeinfo.tm_min < 10) min = "0" + String(timeinfo.tm_min);
+    else min = String(timeinfo.tm_min);
+
+    if(timeinfo.tm_sec < 10) sec = "0" + String(timeinfo.tm_sec);
+    else sec = String(timeinfo.tm_sec);
+
     date = String(timeinfo.tm_year + 1900) + "-" + String(timeinfo.tm_mon + 1) + "-" + String(timeinfo.tm_mday) + ","
             + String(day) + "," 
-            + String(timeinfo.tm_hour) + ":" + String(timeinfo.tm_min) + ":" + String(timeinfo.tm_sec);
+            + String(hour) + ":" + String(min) + ":" + String(sec);
 
     Serial.println("Date : " + date);
 
@@ -623,12 +706,15 @@ void getMonthStockData(String stockName)
                 dataCnt++;
             }
 
-            esp2stmPacket = "*SM^" + String(stockName);
-            for(int i = 0; i < 22; i++)
+            if(dataCnt == 22)
             {
-                esp2stmPacket += "," + String(data[i]);
+                esp2stmPacket = "*SM^" + String(stockName);
+                for(int i = 0; i < 22; i++)
+                {
+                    esp2stmPacket += "," + String(data[i]);
+                }
+                sendPacketToStm(esp2stmPacket);
             }
-            sendPacketToStm(esp2stmPacket);
         }
         else
         {
@@ -642,6 +728,205 @@ void getMonthStockData(String stockName)
 
     // Close the connection
     http.end();
+}
+
+
+bool getBusStationId(int mobileNo) 
+{
+    Serial.println("-------------------------------------");
+    Serial.println("[REQUEST] Bus Station ID");
+
+    WiFiClient mySocket;
+    HTTPClient myHTTP;
+
+    int httpCode;
+    char buffer[300];
+    myBus.mobileNo = mobileNo;
+
+    snprintf(buffer, sizeof(buffer), "http://apis.data.go.kr/6410000/busstationservice/getBusStationList?serviceKey=%s&keyword=%d",PUBLIC_DATA_API_KEY, myBus.mobileNo);
+    myHTTP.begin(mySocket, buffer);
+    delay(500);
+
+    httpCode = myHTTP.GET();
+    printf("[HTTP CODE] %d \r\n", httpCode);
+
+    if (httpCode == HTTP_CODE_OK) 
+    {
+        Serial.println("[OK]");
+        strcpy(xmlDoc, myHTTP.getString().c_str());
+    } 
+    else 
+    {
+        Serial.println("[ERROR]");
+        myHTTP.end();
+        Serial.println("-------------------------------------");
+        return false;
+    }
+    myHTTP.end();
+
+    XMLDocument xmlDocument;
+    if (xmlDocument.Parse(xmlDoc) != XML_SUCCESS) 
+    {
+        Serial.println("[PARSE ERROR]");
+        myHTTP.end();
+        Serial.println("-------------------------------------");
+        return false;
+    };
+
+    XMLNode* root = xmlDocument.RootElement();
+
+    // 정류소아이디
+    XMLElement* element = root->FirstChildElement("msgBody")->FirstChildElement("busStationList")->FirstChildElement("stationId");
+    element->QueryIntText(&myBus.stationId);
+    printf("[정류소아이디] %d\r\n", myBus.stationId);
+
+    // 정류소명
+    element = root->FirstChildElement("msgBody")->FirstChildElement("busStationList")->FirstChildElement("stationName");
+    strcpy(myBus.stationName, element->GetText());
+    printf("[정류소명] %s\r\n", myBus.stationName);
+
+    Serial.println("-------------------------------------");
+    return true;
+}
+
+bool getStaOrder(int stationId, const char* routeName) 
+{
+    Serial.println("-------------------------------------");
+    Serial.println("[REQUEST] Bus StaOrder");
+
+    WiFiClient mySocket;
+    HTTPClient myHTTP;
+
+    int httpCode;
+    char buffer[300];
+
+    snprintf(buffer, sizeof(buffer), "http://apis.data.go.kr/6410000/busstationservice/getBusStationViaRouteList?serviceKey=%s&stationId=%d", PUBLIC_DATA_API_KEY, stationId);
+    myHTTP.begin(mySocket, buffer);
+    delay(500);
+
+    if (myHTTP.GET() == HTTP_CODE_OK) {
+        Serial.println("[OK]");
+        strcpy(xmlDoc, myHTTP.getString().c_str());
+    } 
+    else 
+    {
+        Serial.println("[ERROR]");
+        myHTTP.end();
+        Serial.println("-------------------------------------");
+        return false;
+    }
+    myHTTP.end();
+
+    XMLDocument xmlDocument;
+    if (xmlDocument.Parse(xmlDoc) != XML_SUCCESS) 
+    {
+        Serial.println("[PARSE ERROR]");
+        myHTTP.end();
+        Serial.println("-------------------------------------");
+        return false;
+  };
+
+    XMLNode* root = xmlDocument.RootElement();
+    XMLElement* element = root->FirstChildElement("msgBody")->FirstChildElement("busRouteList");
+
+    char routeNameBuf[30];
+    for (XMLElement* routeList = element; routeList != NULL; routeList = routeList->NextSiblingElement()) 
+    {
+        strcpy(routeNameBuf, routeList->FirstChildElement("routeName")->GetText());
+        printf("%s\r\n", routeNameBuf);
+
+        if (strcmp(routeNameBuf, routeName) == 0) 
+        {
+            routeList->FirstChildElement("routeId")->QueryIntText(&myBus.routeId);
+            routeList->FirstChildElement("staOrder")->QueryIntText(&myBus.staOrder);
+            break;
+        }
+    }
+
+    printf("[노선아이디] %d\r\n", myBus.routeId);
+    printf("[정류소순번] %d\r\n", myBus.staOrder);
+
+    Serial.println("-------------------------------------");
+    return true;
+}
+
+bool getBusArrival(const char* routeName, int stationId, int routeId, int staOrder)  // getBusArrivalItem Operation
+{
+    Serial.println("-------------------------------------");
+    Serial.println("[REQUEST] BUS Arrival");
+
+    WiFiClient mySocket;
+    HTTPClient myHTTP;
+
+    int httpCode;
+    char buffer[300];
+    memset(xmlDoc, 0, sizeof(xmlDoc));
+
+    snprintf(buffer, sizeof(buffer), "http://apis.data.go.kr/6410000/busarrivalservice/getBusArrivalItem?serviceKey=%s&stationId=%d&routeId=%d&staOrder=%d", PUBLIC_DATA_API_KEY, stationId, routeId, staOrder);
+    myHTTP.begin(mySocket, buffer);
+    delay(500);
+
+    Serial.println(buffer);
+
+    httpCode = myHTTP.GET();
+    printf("[HTTP CODE] %d \r\n", httpCode);
+
+    if (httpCode == HTTP_CODE_OK) 
+    {
+        Serial.println("[OK]");
+        strcpy(xmlDoc, myHTTP.getString().c_str());
+    } 
+    else 
+    {
+        Serial.println("[ERROR]");
+        myHTTP.end();
+        Serial.println("-------------------------------------");
+        return false;
+    }
+    myHTTP.end();
+
+    XMLDocument xmlDocument;
+    if (xmlDocument.Parse(xmlDoc) != XML_SUCCESS) 
+    {
+        Serial.println("[PARSE ERROR]");
+        Serial.println("-------------------------------------");
+        return false;
+    };
+
+    XMLNode* root = xmlDocument.RootElement();
+
+    // 첫번째차량 위치정보
+    XMLElement* element = root->FirstChildElement("msgBody")->FirstChildElement("busArrivalItem")->FirstChildElement("locationNo1");
+    element->QueryIntText(&myBus.locationNo1);
+    printf("[첫번째버스 위치정보] %d번째전 정류소\r\n", myBus.locationNo1);
+
+    element = root->FirstChildElement("msgBody")->FirstChildElement("busArrivalItem")->FirstChildElement("locationNo2");
+    element->QueryIntText(&myBus.locationNo2);
+    printf("[두번째버스 위치정보] %d번째전 정류소\r\n", myBus.locationNo2);
+
+    // 첫번째차량 도착예상시간
+    element = root->FirstChildElement("msgBody")->FirstChildElement("busArrivalItem")->FirstChildElement("predictTime1");
+    element->QueryIntText(&myBus.predictTime1);
+    printf("[첫번째버스 도착예상시간] %d분후\r\n", myBus.predictTime1);
+    element = root->FirstChildElement("msgBody")->FirstChildElement("busArrivalItem")->FirstChildElement("predictTime2");
+    element->QueryIntText(&myBus.predictTime2);
+    printf("[두번째버스 도착예상시간] %d분후\r\n", myBus.predictTime2);
+
+    // 정류소명
+    String staStr(myBus.stationName);
+    int nameLen = strlen(myBus.stationName) / 3;
+
+    // 버스와 도착 시간
+    char preBuf[20];
+    snprintf(preBuf, sizeof(preBuf), "%s  %d분", myBus.routeName, myBus.predictTime1);
+    String preStr(preBuf);
+
+    esp2stmPacket = 
+        "*BS^" + String(myBus.routeName) + "," + String(myBus.mobileNo) + "," + String(myBus.predictTime1) + "," + String(myBus.predictTime2);
+    sendPacketToStm(esp2stmPacket);
+
+    Serial.println("-------------------------------------");
+    return true;
 }
 
 void sendUserButtonPacket()
