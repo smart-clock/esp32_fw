@@ -18,16 +18,16 @@
 #define STOCK_NAME_SIZE 32
 #define WEATHER_INFO_SIZE 32
 #define TRANSPORTATION_INFO_SIZE 32
-#define RGB_INFO_SIZE 3
+#define RGB_INFO_SIZE 4
 
 #define STM32_UART_TX_PIN   (5)
 #define STM32_UART_RX_PIN   (4)
 
 #define USER_BUTION_PIN     (0) // 0 : dev board, 17 : our board
 #define BUZZER_PIN          (8)
-#define RGB_LED_PIN         (9)
+#define RGB_LED_PIN         (16)
 
-#define RGB_LED_NUM         (2) // TODO
+#define RGB_LED_NUM         (17) 
 #define BRIGHTNESS          (180) //  밝기 설정 0(어둡게) ~ 255(밝게) 까지 임의로 설정 가능
 
 #define MAX_NUM_BATTERY_PERCENT_NUM 21
@@ -70,8 +70,8 @@ const char* calendarId = "385956556797-c8ps53eei1tcb836qmhetc3o294noqki.apps.goo
 const char* finnhubApiKey = "cletue1r01qnc24enns0cletue1r01qnc24ennsg";
 
 // key 1 : 90SJ6Y9ECCZU8VNC, key 2 : 5YNRYI61AVHWUK9C
-const char* alphaVantageApiKey = "5YNRYI61AVHWUK9C";
-// const char* alphaVantageApiKey = "demo";
+// const char* alphaVantageApiKey = "5YNRYI61AVHWUK9C";
+const char* alphaVantageApiKey = "demo";
 const char* alphaVantageApiUrl = "https://www.alphavantage.co/query";
 
 AsyncWebServer server(80);
@@ -87,7 +87,8 @@ String transportationInfo = "No Transportation Info";
 
 String esp2stmPacket = "";
 
-Adafruit_NeoPixel strip = Adafruit_NeoPixel(RGB_LED_NUM, RGB_LED_PIN, NEO_GRB + NEO_KHZ800);
+Adafruit_NeoPixel ws2812b(RGB_LED_NUM, RGB_LED_PIN, NEO_GRB + NEO_KHZ800);
+Adafruit_NeoPixel ws2812bBuiltIn(1, 38, NEO_GRB + NEO_KHZ800);
 
 BUS myBus;
 using namespace tinyxml2;
@@ -105,12 +106,8 @@ uint32_t periodPrev[5] = {0};
 void setupUART();
 void setupWiFi();
 void setupServer();
-void setUserButton();
 void setRgbLed();
-void startstrip();
-
-void colorWipe(uint32_t c, uint8_t wait);
-void lightNEO();
+void changeRgbLed(int R, int G, int B);
 
 void saveToEEPROM();
 void loadFromEEPROM();
@@ -129,8 +126,6 @@ bool getBusStationId(int mobileNo); // 29405 명지대 입구
 bool getStaOrder(int stationId, const char* routeName); // 5005번 버스
 bool getBusArrival(const char* routeName, int stationId, int routeId, int staOrder);
 
-void sendUserButtonPacket();
-
 void sendPacketToStm(String packet);
 void receivePacketFromStm();
 /* USER CODE END PFP */
@@ -143,17 +138,16 @@ void setup()
     setupWiFi();
     loadFromEEPROM(); // Load data from EEPROM
     setupServer();
-    setUserButton();
     setRgbLed();
-    startstrip();
+    changeRgbLed(neopixelRed, neopixelGreen, neopixelBlue);
 
     configTime(gmtOffset_sec, daylightOffset_sec, ntpServer);
 
     getDateTime();
-    getKoreaWeather();
-    getCurrentStockData(stockName);
-    getMonthStockData(stockName);
-    //getBatteryState();
+    // getKoreaWeather();
+    // getCurrentStockData(stockName);
+    // getMonthStockData(stockName);
+    // getBatteryState();
 }
 
 void loop()
@@ -162,8 +156,6 @@ void loop()
     checkAndPrintWeather();
     checkAndPrintTransportation();
     checkAndPrintRGB();
-
-    sendUserButtonPacket();
 
     period = millis();
 
@@ -258,8 +250,9 @@ void setupWiFi()
     configTime(9 * 3600, 0, "pool.ntp.org", "time.nist.gov");
 }
 
-void setupServer() {
-  server.on("/", HTTP_GET, [](AsyncWebServerRequest *request){
+void setupServer() 
+{
+    server.on("/", HTTP_GET, [](AsyncWebServerRequest *request){
     // Serve the page with the current value
     String page = String(index_html);
     page.replace("%VALUE%", String(valueToDisplay));
@@ -267,78 +260,97 @@ void setupServer() {
     page.replace("No Weather Info", weatherInfo);
     page.replace("No Transportation Info", transportationInfo);
     request->send(200, "text/html", page);
-  });
+    });
 
-  server.on("/data", HTTP_GET, [](AsyncWebServerRequest *request){
+    server.on("/data", HTTP_GET, [](AsyncWebServerRequest *request){
     // Update values here
     valueToDisplay = analogRead(A0);
 
     // Serve only the updated value without the full HTML content
     request->send(200, "text/plain", String(valueToDisplay));
-  });
+    });
 
-  server.on("/updateAll", HTTP_GET, [](AsyncWebServerRequest *request){
-    // Update stock name
-    if (request->hasParam("name")) {
-      stockName = request->getParam("name")->value();
-    }
+    server.on("/updateAll", HTTP_GET, [](AsyncWebServerRequest *request)
+    {
+        Serial.println("-------------SERVER UPDATE-------------");
 
-    // Update weather information
-    if (request->hasParam("country") && request->hasParam("city")) {
-      String country = request->getParam("country")->value();
-      String city = request->getParam("city")->value();
-      weatherInfo = city + ", " + country; // Implement your logic to get weather info
-    }
+        // Update stock name
+        if (request->hasParam("name")) {
+            stockName = request->getParam("name")->value();
+            Serial.println(stockName);
+        }
 
-    // Update transportation information
-    if (request->hasParam("platform") && request->hasParam("bus")) {
-      String platform = request->getParam("platform")->value();
-      String bus = request->getParam("bus")->value();
-      transportationInfo = platform + "," + bus; // Implement your logic to get transportation info
+        // Update weather information
+        if (request->hasParam("country") && request->hasParam("city")) {
+            String country = request->getParam("country")->value();
+            String city = request->getParam("city")->value();
+            weatherInfo = city + ", " + country; // Implement your logic to get weather info
+            Serial.println(country);
+            Serial.println(city);
+        }
 
-      myBus.mobileNo = platform.toInt();
-      bus.toCharArray(myBus.routeName, 30); 
+        // Update transportation information
+        if (request->hasParam("platform") && request->hasParam("bus")) {
+            String platform = request->getParam("platform")->value();
+            String bus = request->getParam("bus")->value();
+            transportationInfo = platform + "," + bus; // Implement your logic to get transportation info
 
-      Serial.println(myBus.mobileNo);
-      Serial.println(myBus.routeName);
-    }
+            myBus.mobileNo = platform.toInt();
+            bus.toCharArray(myBus.routeName, 30); 
 
-    if (request->hasParam("red") && request->hasParam("green") && request->hasParam("blue")) {
-    neopixelRed = request->getParam("red")->value().toInt();
-    neopixelGreen = request->getParam("green")->value().toInt();
-    neopixelBlue = request->getParam("blue")->value().toInt();
-    }
+            Serial.println(myBus.mobileNo);
+            Serial.println(myBus.routeName);
+        }
 
-    // Save to EEPROM
-    saveToEEPROM();
+        if (request->hasParam("red") && request->hasParam("green") && request->hasParam("blue")) 
+        {
+            neopixelRed = request->getParam("red")->value().toInt();
+            neopixelGreen = request->getParam("green")->value().toInt();
+            neopixelBlue = request->getParam("blue")->value().toInt();
 
-    request->send(200, "text/plain", "All information updated and saved to EEPROM");
-  });
+            Serial.println(neopixelRed);
+            Serial.println(neopixelGreen);
+            Serial.println(neopixelBlue);
+        }
 
-  server.begin();
-}
+        // Save to EEPROM
+        saveToEEPROM();
+        Serial.println("-------------SERVER UPDATE-------------");
 
-void setUserButton()
-{
-    // pinMode(USER_BUTION_PIN, INPUT_PULLUP);
-    // attachInterrupt(digitalPinToInterrupt(USER_BUTION_PIN), sendUserButtonPacket, RISING);
+        request->send(200, "text/plain", "All information updated and saved to EEPROM");
+    });
 
-    pinMode(USER_BUTION_PIN, INPUT_PULLUP);
+    server.begin();
 }
 
 void setRgbLed()
 {
-    strip.setBrightness(BRIGHTNESS);    //  BRIGHTNESS 만큼 밝기 설정 
-    strip.begin();                      //  Neopixel 제어를 시작
-    strip.show();                       //  Neopixel 동작 초기화 합니다
+    ws2812b.begin();    
+    ws2812b.setBrightness(50);
+    
+    ws2812bBuiltIn.begin();    
+    ws2812bBuiltIn.setBrightness(50);
+
+    ws2812bBuiltIn.setPixelColor(0, ws2812b.Color(0, 0, 0));
+    ws2812bBuiltIn.show();
+    delay(500);
+
+    ws2812bBuiltIn.clear();
+    ws2812bBuiltIn.setPixelColor(0, ws2812b.Color(128, 128, 128));
+    ws2812bBuiltIn.show();
 }
 
-void startstrip()
+void changeRgbLed(int R, int G, int B)
 {
-  strip.begin();
-  strip.setPixelColor(0, 255, 255, 255);          //  Neopixel 색상 설정
-  strip.setPixelColor(1, 255, 255, 255);          //  ( 소자위치 , (Red) , (Green) , (Blue) ) 3가지 색을 다 킨다면 White가 켜짐
-  strip.show();                               //  LED가 켜지는 동작을 하게 합니다
+    ws2812b.begin();
+
+    // turn on all pixels to red at the same time for two seconds
+    for (int pixel = 0; pixel < RGB_LED_NUM; pixel++) 
+    {         // for each pixel
+        ws2812b.setPixelColor(pixel, ws2812b.Color(R, G, B));  // it only takes effect if pixels.show() is called
+    }
+
+    ws2812b.show();  // update to the WS2812B Led Strip    
 }
 
 void saveToEEPROM() {
@@ -357,32 +369,40 @@ void saveToEEPROM() {
   EEPROM.end();
 }
 
-void loadFromEEPROM() {
-  Serial.println("-------------LOAD FROM EEPROM-------------");
-  EEPROM.begin(STOCK_NAME_SIZE + WEATHER_INFO_SIZE + TRANSPORTATION_INFO_SIZE + (RGB_INFO_SIZE * 3));
+void loadFromEEPROM() 
+{
+    Serial.println("-------------LOAD FROM EEPROM-------------");
+    EEPROM.begin(STOCK_NAME_SIZE + WEATHER_INFO_SIZE + TRANSPORTATION_INFO_SIZE + (RGB_INFO_SIZE * 3));
 
-  // Read each variable from EEPROM
-  stockName = EEPROM.readString(0);
-  weatherInfo = EEPROM.readString(STOCK_NAME_SIZE);
-  transportationInfo = EEPROM.readString(STOCK_NAME_SIZE + WEATHER_INFO_SIZE);
+    // Read each variable from EEPROM
+    stockName = EEPROM.readString(0);
+    weatherInfo = EEPROM.readString(STOCK_NAME_SIZE);
+    Serial.println(stockName);
+    Serial.println(weatherInfo);
 
-  String tmp = "";
-  int index = 0;
-  index = transportationInfo.indexOf(',');
-  tmp = transportationInfo.substring(0, index);
-  myBus.mobileNo = tmp.toInt();
-  Serial.println(myBus.mobileNo);
+    String tmp = "";
+    int index = 0;
 
-  tmp = transportationInfo.substring(index + 1);
-  tmp.toCharArray(myBus.routeName, 30); 
-  Serial.println(myBus.routeName);
+    transportationInfo = EEPROM.readString(STOCK_NAME_SIZE + WEATHER_INFO_SIZE);
+    index = transportationInfo.indexOf(',');
+    tmp = transportationInfo.substring(0, index);
+    myBus.mobileNo = tmp.toInt();
+    Serial.println(myBus.mobileNo);
 
-  neopixelRed = EEPROM.readInt(STOCK_NAME_SIZE + WEATHER_INFO_SIZE + TRANSPORTATION_INFO_SIZE);
-  neopixelGreen = EEPROM.readInt(STOCK_NAME_SIZE + WEATHER_INFO_SIZE + TRANSPORTATION_INFO_SIZE + RGB_INFO_SIZE);
-  neopixelBlue = EEPROM.readInt(STOCK_NAME_SIZE + WEATHER_INFO_SIZE + TRANSPORTATION_INFO_SIZE + (2 * RGB_INFO_SIZE));
+    tmp = transportationInfo.substring(index + 1);
+    tmp.toCharArray(myBus.routeName, 30); 
+    Serial.println(myBus.routeName);
 
-  EEPROM.end();
-  Serial.println("-------------LOAD FROM EEPROM-------------");
+    neopixelRed = EEPROM.readInt(STOCK_NAME_SIZE + WEATHER_INFO_SIZE + TRANSPORTATION_INFO_SIZE);
+    neopixelGreen = EEPROM.readInt(STOCK_NAME_SIZE + WEATHER_INFO_SIZE + TRANSPORTATION_INFO_SIZE + RGB_INFO_SIZE);
+    neopixelBlue = EEPROM.readInt(STOCK_NAME_SIZE + WEATHER_INFO_SIZE + TRANSPORTATION_INFO_SIZE + (2 * RGB_INFO_SIZE));
+ 
+    Serial.println(neopixelRed);
+    Serial.println(neopixelGreen);
+    Serial.println(neopixelBlue);
+
+    EEPROM.end();
+    Serial.println("-------------LOAD FROM EEPROM-------------");
 }
 
 void checkAndPrintStockName() {
@@ -430,21 +450,28 @@ void checkAndPrintRGB() {
   static int previousneopixelGreen = 0;
   static int previousneopixelBlue = 0;
 
+  bool changeFlag = false;
+
   if (neopixelRed != previousneopixelRed) {
-    Serial.print("R= ");
-    Serial.println(neopixelRed);
+    // Serial.print("R= ");
+    // Serial.println(neopixelRed);
     previousneopixelRed = neopixelRed;
+    changeFlag = true;
   }
   if (neopixelGreen != previousneopixelGreen) {
-    Serial.print("G= ");
-    Serial.println(neopixelGreen);
+    // Serial.print("G= ");
+    // Serial.println(neopixelGreen);
     previousneopixelGreen = neopixelGreen;
+    changeFlag = true;
   }
   if (neopixelBlue != previousneopixelBlue) {
-    Serial.print("B= ");
-    Serial.println(neopixelBlue);
+    // Serial.print("B= ");
+    // Serial.println(neopixelBlue);
     previousneopixelBlue = neopixelBlue;
+    changeFlag = true;
   }
+
+  if(changeFlag) changeRgbLed(neopixelRed, neopixelGreen, neopixelBlue);
 }
 
 void getBatteryState()
@@ -483,7 +510,7 @@ void receivePacketFromStm()
 
 void getDateTime() 
 {
-    String date = "";
+    String time = "";
     String day = "";
 
     struct tm timeinfo;
@@ -521,8 +548,14 @@ void getDateTime()
             break;
     }
 
-    String hour, min, sec;
+    String month, date;
+    if((timeinfo.tm_mon + 1) < 10) month = "0" + String(timeinfo.tm_mon + 1);
+    else month = String(timeinfo.tm_mon + 1);
 
+    if(timeinfo.tm_mday < 10) date = "0" + String(timeinfo.tm_mday);
+    else date = String(timeinfo.tm_mday);
+
+    String hour, min, sec;
     if(timeinfo.tm_hour < 10) hour = "0" + String(timeinfo.tm_hour);
     else hour = String(timeinfo.tm_hour);
 
@@ -532,13 +565,13 @@ void getDateTime()
     if(timeinfo.tm_sec < 10) sec = "0" + String(timeinfo.tm_sec);
     else sec = String(timeinfo.tm_sec);
 
-    date = String(timeinfo.tm_year + 1900) + "-" + String(timeinfo.tm_mon + 1) + "-" + String(timeinfo.tm_mday) + ","
+    time = String(timeinfo.tm_year + 1900) + "-" + String(month) + "-" + String(date) + ","
             + String(day) + "," 
             + String(hour) + ":" + String(min) + ":" + String(sec);
 
-    Serial.println("Date : " + date);
+    Serial.println("Date : " + time);
 
-    esp2stmPacket = "*DA^" + String(date);
+    esp2stmPacket = "*DA^" + String(time);
     sendPacketToStm(esp2stmPacket);
 }
 
@@ -567,9 +600,11 @@ void getKoreaWeather()
             int temperature = doc["main"]["temp"];
             temperature -= 273;
 
+            Serial.println("-------------------------------------");
             Serial.println("City: " + city);
             Serial.println("Main: " + main); // use main cuz description is too long
             Serial.println("Temperature: " + String(temperature) + "°C");
+            Serial.println("-------------------------------------");
 
             // Send Packet from ESP to STM
             esp2stmPacket = "*WT^" + String(city) + "," + String(main) + "," + String(temperature);
@@ -614,7 +649,8 @@ void getCurrentStockData(String stockName)
             if (doc.containsKey("c") && doc.containsKey("pc") && doc.containsKey("t")) 
             {
                 // Extract and print stock data
-                Serial.println("Stock Data from Finnhub:");
+                Serial.println("-------------------------------------");
+                Serial.println("Current Stock from Finnhub");
                 Serial.println("Symbol: " + String(stockName));
 
                 currentPrice = String(doc["c"].as<float>());
@@ -636,11 +672,12 @@ void getCurrentStockData(String stockName)
                 //               timeinfo.tm_year + 1900, timeinfo.tm_mon + 1, timeinfo.tm_mday,
                 //               timeinfo.tm_hour, timeinfo.tm_min, timeinfo.tm_sec);
 
-                Serial.println();
+                Serial.println("-------------------------------------");
 
                 // Send Packet from ESP to STM
                 esp2stmPacket = "*SC^" + String(stockName) + "," + String(currentPrice);
                 sendPacketToStm(esp2stmPacket);
+                
             } 
             else 
             {
@@ -873,7 +910,7 @@ bool getBusArrival(const char* routeName, int stationId, int routeId, int staOrd
     myHTTP.begin(mySocket, buffer);
     delay(500);
 
-    Serial.println(buffer);
+    // Serial.println(buffer);
 
     httpCode = myHTTP.GET();
     printf("[HTTP CODE] %d \r\n", httpCode);
@@ -934,20 +971,5 @@ bool getBusArrival(const char* routeName, int stationId, int routeId, int staOrd
 
     Serial.println("-------------------------------------");
     return true;
-}
-
-void sendUserButtonPacket()
-{
-    buttonCurr = digitalRead(USER_BUTION_PIN);    
-
-    if((buttonCurr == 1) && (buttonPrev == 0))
-    {
-        esp2stmPacket = "*BU^1";
-        sendPacketToStm(esp2stmPacket);
-
-        buttonPrev = buttonCurr;
-    }
-
-    buttonPrev = buttonCurr;
 }
 /* USER CODE BEGIN PFP DEFINITION */
