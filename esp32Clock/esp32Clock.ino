@@ -70,8 +70,8 @@ const char* calendarId = "385956556797-c8ps53eei1tcb836qmhetc3o294noqki.apps.goo
 const char* finnhubApiKey = "cletue1r01qnc24enns0cletue1r01qnc24ennsg";
 
 // key 1 : 90SJ6Y9ECCZU8VNC, key 2 : 5YNRYI61AVHWUK9C
-// const char* alphaVantageApiKey = "5YNRYI61AVHWUK9C";
-const char* alphaVantageApiKey = "demo";
+const char* alphaVantageApiKey = "5YNRYI61AVHWUK9C";
+// const char* alphaVantageApiKey = "demo";
 const char* alphaVantageApiUrl = "https://www.alphavantage.co/query";
 
 AsyncWebServer server(80);

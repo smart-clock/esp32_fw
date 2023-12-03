@@ -1,5 +1,11 @@
 # esp32_fw
 
+## Pin
+- 17 : BUTTON (CN8)
+- 5 : UART TX (CN1)
+- 4 : UART RX (CN1)
+- 16 : RGB LED (WS2812) (CN3)
+
 ## Protocol
 
 1. 모든 데이터는 `char` 타입
