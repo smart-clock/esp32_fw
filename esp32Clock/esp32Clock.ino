@@ -53,8 +53,10 @@ typedef struct
 
 
 /* USER CODE BEGIN PV */
-const char* ssid = "RATS_2.4G"; // RATS_2.4G
-const char* password = "rats8005"; // rats8005
+// const char* ssid = "RATS_2.4G"; // RATS_2.4G
+// const char* password = "rats8005"; // rats8005
+const char* ssid = "mokhwa_note8"; // RATS_2.4G
+const char* password = "4j4j2u#~~"; // rats8005
 
 // NTP server to request epoch time
 const char* ntpServer = "pool.ntp.org";
@@ -71,7 +73,7 @@ const char* finnhubApiKey = "cletue1r01qnc24enns0cletue1r01qnc24ennsg";
 
 // key 1 : 90SJ6Y9ECCZU8VNC, key 2 : 5YNRYI61AVHWUK9C
 // const char* alphaVantageApiKey = "5YNRYI61AVHWUK9C";
-const char* alphaVantageApiKey = "demo";
+String alphaVantageApiKey = "demo";
 const char* alphaVantageApiUrl = "https://www.alphavantage.co/query";
 
 AsyncWebServer server(80);
@@ -135,10 +137,10 @@ void receivePacketFromStm();
 void setup() 
 {
     setupUART();
+    setRgbLed();
     setupWiFi();
     loadFromEEPROM(); // Load data from EEPROM
     setupServer();
-    setRgbLed();
     changeRgbLed(neopixelRed, neopixelGreen, neopixelBlue);
 
     configTime(gmtOffset_sec, daylightOffset_sec, ntpServer);
@@ -278,6 +280,8 @@ void setupServer()
         if (request->hasParam("name")) {
             stockName = request->getParam("name")->value();
             Serial.println(stockName);
+
+
         }
 
         // Update weather information
@@ -375,7 +379,8 @@ void loadFromEEPROM()
     EEPROM.begin(STOCK_NAME_SIZE + WEATHER_INFO_SIZE + TRANSPORTATION_INFO_SIZE + (RGB_INFO_SIZE * 3));
 
     // Read each variable from EEPROM
-    stockName = EEPROM.readString(0);
+    // stockName = EEPROM.readString(0);
+    stockName = "IBM";
     weatherInfo = EEPROM.readString(STOCK_NAME_SIZE);
     Serial.println(stockName);
     Serial.println(weatherInfo);
@@ -411,6 +416,12 @@ void checkAndPrintStockName() {
   if (stockName != previousStockName) {
     Serial.print("Stock Name Info Updated: ");
     Serial.println(stockName);
+
+    if(stockName != "IBM")
+    {
+        alphaVantageApiKey = "5YNRYI61AVHWUK9C";
+    }
+
     previousStockName = stockName;
 
     getCurrentStockData(stockName);
